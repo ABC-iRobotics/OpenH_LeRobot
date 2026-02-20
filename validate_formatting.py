@@ -652,7 +652,7 @@ class OpenHDatasetValidator:
                 repo_id,
                 root=str(self.dataset_path),
                 video_backend="pytorch",
-                tolerance_s = 0.0012,
+                tolerance_s = 0.001,
             )
 
             self.add_result(

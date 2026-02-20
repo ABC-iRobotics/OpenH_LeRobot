@@ -98,7 +98,7 @@ def make_episode_dir(base: Path, idx: int) -> Path:
 
 def frame_ctime_ns(folder: Path, fname: str) -> int:
     s = os.stat(os.path.join(folder, fname))
-    return int(s.st_ctime_ns)
+    return int(s.st_mtime_ns) #ctime NEM  creation time, hanem az utolsó metadata módosítás. mtime csak a file tartalmának módosításakor változik és a fájlnév változtatás az metadata változásnak számít
 
 
 def list_frame_files_with_markers(folder: Path) -> List[Tuple[int, str, str]]:
@@ -207,7 +207,8 @@ def nearest_by_time(times: List[int], names: List[str], target_ns: int) -> Optio
 # ---------------- CSV helpers ----------------
 
 def find_recordings_csv_input(session_name: str) -> Path:
-    folder = script_dir() / "recordings_csv"
+    #folder = script_dir() / "recordings_csv"
+    folder = Path("/data") / "recordings_csv"
     if not folder.exists() or not folder.is_dir():
         raise SystemExit(f'Missing folder next to script: "{folder}"')
 
@@ -297,6 +298,7 @@ def csv_rows_in_window(times: List[int], t0: int, t1: int) -> Tuple[int, int]:
     """
     if t1 < t0:
         t0, t1 = t1, t0
+        #print(t0, t1)
     i0 = bisect_left(times, t0)
     i1 = bisect_left(times, t1 + 1)  # inclusive end
     if i0 == i1:
@@ -314,13 +316,14 @@ def main() -> int:
     src = resolve_session_folder(args.input)
 
     # output base
-    ds_base = script_dir() / "dataset" / args.phantom / args.subtask
+    #ds_base = script_dir() / "dataset" / args.phantom / args.subtask
+    ds_base = Path("/data") / "dataset" / args.phantom / args.subtask
     episode_idx = next_episode_index(ds_base)
 
     # input folders mapping
     in_dl0 = src / "decklink0"
     in_dl1 = src / "decklink1"
-    in_usb6 = src / "usb0"
+    in_usb6 = src / "usb6"
     in_usb8 = src / "usb8"
     in_rs_c = src / "realsense_color"
     in_rs_d = src / "realsense_depth"

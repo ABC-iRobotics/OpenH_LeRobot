@@ -5,17 +5,9 @@ Starts:
 - daVinciFrameSequenceRecorder.py (VIDEO)  -> recordings/<session_name>/{decklink0,decklink1,usb6,usb8}/frame_*.jpg
 - daVinciKinematicsRecorder.py    (ROS)    -> recordings_csv/dvrk_psm_meas_setpoint_<session_name>_30sps.csv
 
-New workflow:
-1) On startup, ask for phantom name and subtask name.
-2) Recording starts immediately.
-3) Press 'q' in the VIDEO terminal to finish the recording (graceful).
-4) When recording stops, Launcher asks whether to run Synchronizer on that session.
-   If yes, it runs:
-     python3 Synchronizer.py -i <session_dir> --phantom <phantom> --subtask <subtask>
-
-Notes:
-- VIDEO keeps the terminal (inherits stdin/stdout/stderr) so its hotkeys work (s/e/q).
-- ROS has stdin disabled so it won't steal keystrokes.
+Adds:
+- Episode CSV logging handled by VIDEO process (daVinciFrameSequenceRecorder.py):
+  recordings_episodes/<subtask>.csv
 """
 
 import os
@@ -48,32 +40,52 @@ def _script_dir() -> Path:
 
 def main() -> int:
 
-    phantom = input("Phantom name (format: string_int): ").strip()
-    subtask = input("Subtask name (format: int_string): ").strip()
+    ##phantom = input("Phantom name (format: string_int): ").strip()
+    ##subtask = input("Subtask name (format: int_string): ").strip()
+    phantom = "Pork_1"
+    subtask = "1_Dissect"
+    #phantom = "Test_1"
+    #subtask = "1_Test"
 
     if not phantom or not subtask:
         print("ERROR: phantom and subtask must be non-empty.")
         return 2
 
     root = _script_dir()
+    root_data = Path("/data")
     video_py = root / "daVinciFrameSequenceRecorder.py"
     ros_py = root / "daVinciKinematicsRecorder.py"
     sync_py = root / "Synchronizer.py"
 
     # One shared session name used by VIDEO folder and ROS CSV filename
     session_name = time.strftime("%Y%m%d_%H%M%S")
-    session_dir = root / "recordings" / session_name
+    session_dir = root_data / "recordings" / session_name
     session_dir.mkdir(parents=True, exist_ok=True)
 
     # Ensure recordings_csv exists next to scripts (Synchronizer expects this)
-    recordings_csv_dir = root / "recordings_csv"
+    recordings_csv_dir = root_data / "recordings_csv"
     recordings_csv_dir.mkdir(parents=True, exist_ok=True)
+
+    # NEW: Episode CSV folder next to recordings/ and recordings_csv/
+    recordings_episodes_dir = root_data / "recordings_episodes"
+    recordings_episodes_dir.mkdir(parents=True, exist_ok=True)
 
     py = sys.executable
     env = os.environ.copy()
 
+    phantomsubtask=phantom+"_"+subtask
+
     video_p = subprocess.Popen(
-        [py, str(video_py), "--session-dir", str(session_dir)],
+        [
+            py,
+            str(video_py),
+            "--session-dir",
+            str(session_dir),
+            "--episodes-dir",
+            str(recordings_episodes_dir),
+            "--subtask",
+            phantomsubtask,
+        ],
         stdin=None,   # inherit TTY
         stdout=None,
         stderr=None,
@@ -92,7 +104,7 @@ def main() -> int:
     print(f"  Phantom: {phantom}")
     print(f"  Subtask: {subtask}")
     print(f"  Session: {session_name}")
-    print(f"  VIDEO pid={video_p.pid} (hotkeys: s/e/q)")
+    print(f"  VIDEO pid={video_p.pid} (hotkeys: s/p/r/f/d/e/q)")
     print(f"  ROS   pid={ros_p.pid} (stdin disabled)")
     print("\nPress 'q' in the VIDEO terminal to finish the recording. Ctrl+C here also stops both.\n")
 

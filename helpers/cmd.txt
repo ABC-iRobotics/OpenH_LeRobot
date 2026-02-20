@@ -1,10 +1,27 @@
-1.: python RecordingLauncher.py 
+1.: 
+python RecordingLauncher.py 
 
-2.: python3 reallocate_episodes.py /home/lorant/OpenH_LeRobot/dataset/alma/korte/ /home/lorant/OpenH_LeRobot/recordings_prfd/test0121.csv 
---dry-run
+1.1.: 
+python Synchronizer.py -i /data/recordings/20260213_150630/ --phantom Pork_1 --subtask 1_Dissection
 
-3.: python dvrk_zarr_to_lerobot.py --data_path /home/lorant/OpenH_LeRobot/dataset/ --repo_id TKristof/openH --phantom_name PegTransfer_1
+2.: 
+python3 reallocate_episodes.py /data/dataset/Skinphantom_1/1_Skinphantom /data/recordings_episodes/NeedleThreading_2_1_NeedleThreading.csv --dry-run
 
-4.: python3 video_hour_counter.py /home/lorant/TKristof/openH/videos/chunk-000/observation.images.endoscope.left
+python3 reallocate_tasks.py /data/dataset/Skinphantom_1/1_Skinphantom /data/recordings_episodes/Skinphantom_1_1_Skinphantom.csv --dry-run
 
-5.: python validate_formatting.py /home/lorant/TKristof/openH
+3.: 
+python dvrk_zarr_to_lerobot.py --data_path /data/dataset/ --repo_id TKristof/Seaspike_3 --phantom_name Seaspike_3 > Seaspike_3_conv.txt
+
+4.: 
+python3 video_hour_counter.py /home/lorant/TKristof/Seaspike_2/videos/chunk-000/observation.images.endoscope.left
+
+5.: 
+python validate_formatting.py /home/lorant/TKristof/openH
+
+
+
+
+
+egyéb:
+
+v4l2-ctl --list-devices

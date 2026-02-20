@@ -6,11 +6,15 @@ Record camera streams into frame sequences at 30 fps:
 - USB cameras via OpenCV (device #6 and #8) -> cv2.imwrite (JPGs)
 - RealSense (color + optional depth) via pyrealsense2 -> JPG/PNG sequences
 
-Adds:
-- While running, press:
-    s -> the NEXT saved frame in recordings/.../decklink0/ gets "_start" suffix
-    e -> the NEXT saved frame in recordings/.../decklink0/ gets "_end" suffix
-    q -> stop recording
+Hotkeys:
+  s -> the NEXT saved frame in recordings/.../decklink0/ gets "_start" suffix AND increments episode counter
+  e -> the NEXT saved frame in recordings/.../decklink0/ gets "_end" suffix (no CSV logging, backward compatible)
+  p/r/f/d -> the NEXT saved frame in recordings/.../decklink0/ gets "_end" suffix AND logs "<episode>, <key>" into CSV
+  q -> stop recording
+
+Episode CSV:
+  recordings_episodes/<subtask>.csv
+  columns: Episode_Number, Notation
 """
 
 import os
@@ -28,6 +32,7 @@ import select
 import termios
 import tty
 import cv2
+import csv
 
 # --- RealSense (optional) ---
 try:
@@ -36,6 +41,64 @@ try:
 except Exception:
     rs = None
     _HAVE_REALSENSE = False
+
+
+# -----------------------------
+# Episode CSV logger (integrated)
+# -----------------------------
+class EpisodeCsvLogger:
+    def __init__(self, episodes_dir: str, subtask: str):
+        self.episodes_dir = os.path.abspath(os.path.expanduser(episodes_dir))
+        self.subtask = subtask.strip()
+        if not self.subtask:
+            raise ValueError("subtask must be non-empty")
+        os.makedirs(self.episodes_dir, exist_ok=True)
+        self.csv_path = os.path.join(self.episodes_dir, f"{self.subtask}.csv")
+
+        self._ensure_header()
+
+    def _ensure_header(self):
+        if os.path.exists(self.csv_path) and os.path.getsize(self.csv_path) > 0:
+            return
+        with open(self.csv_path, mode="w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["Episode_Number", "Notation"])
+
+    def get_last_episode_number(self) -> int:
+        if not os.path.exists(self.csv_path) or os.path.getsize(self.csv_path) == 0:
+            return 0
+
+        last_ep = 0
+        try:
+            with open(self.csv_path, mode="r", newline="") as f:
+                r = csv.reader(f)
+                header_skipped = False
+                for row in r:
+                    if not row:
+                        continue
+                    if not header_skipped:
+                        header_skipped = True
+                        # expect header in first row; continue
+                        continue
+                    if len(row) < 1:
+                        continue
+                    ep_str = (row[0] or "").strip()
+                    # expected "episode_###"
+                    if ep_str.startswith("episode_"):
+                        try:
+                            n = int(ep_str.split("_", 1)[1])
+                            if n > last_ep:
+                                last_ep = n
+                        except Exception:
+                            pass
+        except Exception:
+            return 0
+        return last_ep
+
+    def append(self, episode_number: int, notation: str):
+        with open(self.csv_path, mode="a", newline="") as f:
+            w = csv.writer(f)
+            w.writerow([f"episode_{episode_number:03d}", notation])
 
 
 # -----------------------------
@@ -95,12 +158,18 @@ def start_decklink_gst_jpg_sequence(
     return proc
 
 
-def _get_newest_windows(limit=10):
-    out = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--name", "."], text=True)
-    _ = [w.strip() for w in out.splitlines() if w.strip()]
-    out2 = subprocess.check_output(["wmctrl", "-l"], text=True)
-    wids2 = [line.split()[0] for line in out2.splitlines() if line.strip()]
-    return wids2[-limit:][::-1]
+def _get_newest_windows(limit=10, title_substring="OpenGL"):
+    # wmctrl -l: WID DESK HOST TITLE...
+    time.sleep(0.5)
+    out = subprocess.check_output(["wmctrl", "-l"], text=True)
+    wids = []
+    for line in out.splitlines():
+        if title_substring in line:
+            wid = line.split()[0]
+            wids.append(wid)
+
+    # keep only the last `limit` ones (wmctrl output is usually oldest->newest)
+    return wids[-limit:][::-1]
 
 
 def _place_wid(wid, x, y, w, h):
@@ -109,16 +178,19 @@ def _place_wid(wid, x, y, w, h):
 
 
 def place_two_latest_preview_windows():
-    time.sleep(0.5)
     wids = _get_newest_windows(limit=20)
+    print(len(wids))
     if len(wids) < 2:
         print("[wmctrl] Not enough windows found to place previews.")
         return False
 
-    wid0, wid1 = wids[0], wids[1]
-    _place_wid(wid1, 0, 0, 1024, 768)
-    _place_wid(wid0, 1024, 0, 1024, 768)
-    print(f"[wmctrl] Placed windows {wid0} and {wid1}")
+    wid1, wid0 = wids[1], wids[0]
+    wid_right, wid_left = sorted([wid0, wid1], key=lambda w: int(w, 16))
+    wid_right, wid_left = wid0, wid1
+
+    _place_wid(wid_right, 0, 0, 1024, 768)
+    _place_wid(wid_left, 1024, 0, 1024, 768)
+    print(f"[wmctrl] Placed windows {wid_left} and {wid_right}")
     return True
 
 
@@ -149,7 +221,7 @@ def stop_gst_process(proc: subprocess.Popen, name: str, timeout_s: float = 3.0):
 
 
 # -----------------------------
-# DeckLink0 marker/renamer (press 's'/'e' -> rename NEXT frame in decklink0)
+# DeckLink0 marker/renamer (press hotkeys -> rename NEXT frame in decklink0)
 # -----------------------------
 _FRAME_RE = re.compile(r"^frame_(\d{6})(?:_(start|end))?\.jpg$")
 
@@ -225,29 +297,50 @@ class Decklink0Marker:
                     self.q.popleft()
 
 
-def keyboard_listener(marker: Decklink0Marker, stop_event: threading.Event):
-    episode_counter = 0
+def keyboard_listener(
+    marker: Decklink0Marker,
+    stop_event: threading.Event,
+    episode_logger: Optional[EpisodeCsvLogger],
+    initial_episode_counter: int,
+):
+    episode_counter = int(initial_episode_counter)
 
     if not sys.stdin.isatty():
-        print("[keyboard] WARN: stdin is not a TTY; s/e hotkeys disabled.")
+        print("[keyboard] WARN: stdin is not a TTY; hotkeys disabled.")
         return
+
+    end_keys = {"p", "r", "f", "d"}
 
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
     try:
         tty.setcbreak(fd)
-        print("[keyboard] Hotkeys: 's' -> next decklink0 frame gets _start, 'e' -> _end, 'q' -> stop")
+        print("[keyboard] Hotkeys: 's'-> _start (+episode++), 'p/r/f/d'-> _end + CSV log, 'e'-> _end only, 'q'-> stop")
+        if episode_logger is not None:
+            print(f"[episodes] CSV: {episode_logger.csv_path} (starting from episode_{episode_counter:03d})")
         while not stop_event.is_set():
             r, _, _ = select.select([sys.stdin], [], [], 0.05)
             if not r:
                 continue
             ch = sys.stdin.read(1)
+
             if ch == "s":
                 marker.schedule_next("_start")
                 episode_counter += 1
-                print(f"Episode #{episode_counter}")
-            elif ch == "e":
+                print(f"Episode #{episode_counter:03d} started")
+            elif ch in end_keys:
                 marker.schedule_next("_end")
+                if episode_logger is None:
+                    print(f"[episodes] WARN: no CSV logger configured; key '{ch}' not logged.")
+                else:
+                    if episode_counter <= 0:
+                        print(f"[episodes] WARN: got '{ch}' but no episode started yet (press 's' first). Not logging.")
+                    else:
+                        episode_logger.append(episode_counter, ch)
+                        print(f"[episodes] episode_{episode_counter:03d} <- '{ch}'")
+            #elif ch == "e":
+                # backward-compatible end marker (no notation logging)
+                # marker.schedule_next("_end")
             elif ch == "q":
                 print("[keyboard] 'q' pressed -> stopping recording...")
                 stop_event.set()
@@ -386,7 +479,6 @@ class RealSenseRecorder(threading.Thread):
             if self.cfg.serial.strip():
                 rs_cfg.enable_device(self.cfg.serial.strip())
 
-            # Color stream (BGR8 so OpenCV writes directly)
             rs_cfg.enable_stream(
                 rs.stream.color,
                 int(self.cfg.color_width),
@@ -415,11 +507,9 @@ class RealSenseRecorder(threading.Thread):
                     time.sleep(min(0.002, next_t - now))
                     continue
 
-                # Wait for frames (with a timeout so we can exit quickly)
                 try:
                     frames = self.pipeline.wait_for_frames(timeout_ms=200)
                 except Exception:
-                    # device hiccup; keep trying
                     next_t = time.perf_counter() + req_period
                     continue
 
@@ -431,22 +521,20 @@ class RealSenseRecorder(threading.Thread):
                 color = color_frame.get_data()
                 color_np = None
                 try:
-                    import numpy as np  # local import to avoid hard dependency if never used
+                    import numpy as np
                     color_np = np.asanyarray(color)
                 except Exception as ex:
                     print(f"[RealSense] ERROR: numpy required for RealSense frames: {ex}")
                     break
 
-                # Save color
                 fname_c = self.cfg.frame_pattern_color % self.frame_idx
                 out_c = os.path.join(self.cfg.out_dir_color, fname_c)
                 cv2.imwrite(out_c, color_np, [int(cv2.IMWRITE_JPEG_QUALITY), int(self.cfg.jpeg_quality)])
 
-                # Save depth (16-bit PNG) if enabled
                 if self.cfg.enable_depth:
                     depth_frame = frames.get_depth_frame()
                     if depth_frame:
-                        depth_np = np.asanyarray(depth_frame.get_data())  # uint16
+                        depth_np = np.asanyarray(depth_frame.get_data())
                         fname_d = self.cfg.frame_pattern_depth % self.frame_idx
                         out_d = os.path.join(self.cfg.out_dir_depth, fname_d)
                         cv2.imwrite(out_d, depth_np)
@@ -484,10 +572,14 @@ def main():
     parser.add_argument("--session-dir", default="", help="Optional pre-created session directory to write into")
     parser.add_argument("--base-dir", default="recordings", help="Base dir for auto-created sessions (default: recordings)")
 
+    # NEW: episode CSV config
+    parser.add_argument("--episodes-dir", default="recordings_episodes", help="Directory for episode CSVs")
+    parser.add_argument("--subtask", default="", help="Subtask name (CSV will be <subtask>.csv)")
+
     # --- RealSense options ---
-    parser.add_argument("--no-realsense", action="store_true", help="Enable RealSense recording (if device present)")
+    parser.add_argument("--no-realsense", action="store_true", help="Disable RealSense recording")
     parser.add_argument("--rs-serial", default="", help="Optional RealSense device serial to lock onto")
-    parser.add_argument("--no-rs-depth", action="store_true", help="Also record depth frames (16-bit PNG)")
+    parser.add_argument("--no-rs-depth", action="store_true", help="Disable depth frames")
     parser.add_argument("--rs-color-w", type=int, default=1280, help="RealSense color width")
     parser.add_argument("--rs-color-h", type=int, default=720, help="RealSense color height")
     parser.add_argument("--rs-depth-w", type=int, default=1280, help="RealSense depth width")
@@ -496,7 +588,7 @@ def main():
     args = parser.parse_args()
 
     decklinks = [0, 1]
-    usb_devs = [0, 8]
+    usb_devs = [6, 8]
     fps_str = "30/1"
     target_fps = 30.0
 
@@ -509,36 +601,52 @@ def main():
     rs_color_dir = os.path.join(session_dir, "realsense_color")
     rs_depth_dir = os.path.join(session_dir, "realsense_depth")
 
+    # Setup episode logger (only if subtask provided)
+    episode_logger: Optional[EpisodeCsvLogger] = None
+    initial_episode_counter = 0
+    if args.subtask.strip():
+        try:
+            episode_logger = EpisodeCsvLogger(args.episodes_dir, args.subtask)
+            initial_episode_counter = episode_logger.get_last_episode_number()
+        except Exception as ex:
+            print(f"[episodes] WARN: could not initialize episode CSV logger: {ex}")
+            episode_logger = None
+            initial_episode_counter = 0
+    else:
+        print("[episodes] NOTE: --subtask not provided; episode CSV logging disabled.")
+
     gst_procs: List[subprocess.Popen] = []
 
-    proc = start_decklink_gst_jpg_sequence(
+    proc0 = start_decklink_gst_jpg_sequence(
         device_number=0,
         out_dir=decklink_dirs[0],
         fps=fps_str,
         mode="pal",
         pattern="frame_%06d.jpg",
     )
-    gst_procs.append(proc)
+    gst_procs.append(proc0)
+    time.sleep(0.1)
 
-    proc = start_decklink_gst_jpg_sequence(
+    proc1 = start_decklink_gst_jpg_sequence(
         device_number=1,
         out_dir=decklink_dirs[1],
         fps=fps_str,
         mode="pal",
         pattern="frame_%06d.jpg",
     )
-    gst_procs.append(proc)
+    gst_procs.append(proc1)
+    time.sleep(0.1)
 
     place_two_latest_preview_windows()
 
     stop_event = threading.Event()
 
-    # --- start decklink0 marker threads ---
+    # --- start decklink0 marker + keyboard threads ---
     decklink0_marker = Decklink0Marker(decklink_dirs[0], stop_event)
     decklink0_marker.start()
     kb_thread = threading.Thread(
         target=keyboard_listener,
-        args=(decklink0_marker, stop_event),
+        args=(decklink0_marker, stop_event, episode_logger, initial_episode_counter),
         daemon=True,
     )
     kb_thread.start()
@@ -577,7 +685,7 @@ def main():
         rs_thread = RealSenseRecorder(rs_cfg, stop_event)
         rs_thread.start()
     else:
-        print("[RealSense] Disabled (use --realsense to enable).")
+        print("[RealSense] Disabled (--no-realsense).")
 
     def handle_signal(signum, frame):
         print("\nSignal received -> stopping...")
@@ -586,7 +694,7 @@ def main():
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    print("\nRecording... Hotkeys: s/e/q. Ctrl+C also works.\n")
+    print("\nRecording... Hotkeys: s / p r f d / e / q. Ctrl+C also works.\n")
 
     try:
         while not stop_event.is_set():
@@ -612,6 +720,8 @@ def main():
                     pass
 
         print(f"\nDone. Frames saved under: {session_dir}")
+        if episode_logger is not None:
+            print(f"[episodes] Logged to: {episode_logger.csv_path}")
 
 
 if __name__ == "__main__":
