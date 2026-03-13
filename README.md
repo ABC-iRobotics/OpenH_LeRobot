@@ -70,4 +70,11 @@ This repository focuses on **data engineering for experiments**, not on model tr
 
 ## Contact
 
+
 If you use or extend this repository, please document your recording setup, task definition, and folder conventions clearly so that the resulting dataset remains reproducible and easy to interpret.
+
+
+## Acknowledgment
+
+This work is related to the MedLaBotX project (2024-1.2.3-HU-RIZONT-00069).
+Project 2024-1.2.3-HU-RIZONT-00069 has been implemented with support provided by the Ministry of Culture and Innovation of Hungary from the National Research, Development, and Innovation Fund, financed under the 2024-1.2.3-HU-RIZONT funding scheme.
