@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this repository in your research, please cite the following paper."
+
+title: "Open-H Acquisition Pipeline and Surgical Robotics Dataset"
+type: software
+
+authors:
+  - family-names: "Lukács"
+    given-names: "E."
+  - family-names: "Takács"
+    given-names: "K."
+  - family-names: "Haidegger"
+    given-names: "T."
+
+preferred-citation:
+  type: conference-paper
+  authors:
+    - family-names: "Lukács"
+      given-names: "E."
+    - family-names: "Takács"
+      given-names: "K."
+    - family-names: "Haidegger"
+      given-names: "T."
+  title: "Open-H Acquisition Pipeline and Surgical Robotics Dataset Evaluation"
+  collection-title: "2026 IEEE 30th International Conference on Intelligent Engineering Systems (INES)"
+  year: 2026
+  start: 219
+  end: 226
+  conference:
+    name: "2026 IEEE 30th International Conference on Intelligent Engineering Systems (INES)"
+  doi: "10.1109/INES69513.2026.11661245"
