@@ -76,10 +76,18 @@ If you use or extend this repository, please document your recording setup, task
 
 ## Citation
 
-If you use this repository in your research, please cite:
+If you use this repository, the Open-H acquisition pipeline, or the associated dataset in your research, please cite:
 
-E. Lukács, K. Takács, and T. Haidegger, "Open-H Acquisition Pipeline and Surgical Robotics Dataset Evaluation," 2026 IEEE 30th International Conference on Intelligent Engineering Systems (INES), Budapest, Hungary, 2026, pp. 219–226, doi: 10.1109/INES69513.2026.11661245.
+> E. Lukács, K. Takács, and T. Haidegger,  
+> **“Open-H Acquisition Pipeline and Surgical Robotics Dataset Evaluation,”**  
+> *2026 IEEE 30th International Conference on Intelligent Engineering Systems (INES)*,  
+> Budapest, Hungary, 2026, pp. 219–226.  
+> DOI: [10.1109/INES69513.2026.11661245](https://doi.org/10.1109/INES69513.2026.11661245)
 
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
 @inproceedings{lukacs2026openh,
   author    = {Luk{\'a}cs, E. and Tak{\'a}cs, K. and Haidegger, T.},
   title     = {Open-H Acquisition Pipeline and Surgical Robotics Dataset Evaluation},
@@ -89,6 +97,11 @@ E. Lukács, K. Takács, and T. Haidegger, "Open-H Acquisition Pipeline and Surgi
   address   = {Budapest, Hungary},
   doi       = {10.1109/INES69513.2026.11661245}
 }
+```
+
+</details>
+
+GitHub also provides citation metadata through the repository's [`CITATION.cff`](CITATION.cff) file.
 
 ## Acknowledgment
 
