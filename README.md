@@ -74,6 +74,22 @@ This repository focuses on **data engineering for experiments**, not on model tr
 If you use or extend this repository, please document your recording setup, task definition, and folder conventions clearly so that the resulting dataset remains reproducible and easy to interpret.
 
 
+## Citation
+
+If you use this repository in your research, please cite:
+
+E. Lukács, K. Takács, and T. Haidegger, "Open-H Acquisition Pipeline and Surgical Robotics Dataset Evaluation," 2026 IEEE 30th International Conference on Intelligent Engineering Systems (INES), Budapest, Hungary, 2026, pp. 219–226, doi: 10.1109/INES69513.2026.11661245.
+
+@inproceedings{lukacs2026openh,
+  author    = {Luk{\'a}cs, E. and Tak{\'a}cs, K. and Haidegger, T.},
+  title     = {Open-H Acquisition Pipeline and Surgical Robotics Dataset Evaluation},
+  booktitle = {2026 IEEE 30th International Conference on Intelligent Engineering Systems (INES)},
+  year      = {2026},
+  pages     = {219--226},
+  address   = {Budapest, Hungary},
+  doi       = {10.1109/INES69513.2026.11661245}
+}
+
 ## Acknowledgment
 
 This work is related to the MedLaBotX project (2024-1.2.3-HU-RIZONT-00069).
